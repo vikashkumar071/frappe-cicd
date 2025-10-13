@@ -13,8 +13,8 @@ on:
         description: 'Admin password (optional, default: admin)'
         required: false
       site_name:
-        description: 'Site name (optional, default: site1.local)'
-        required: false
+        description: 'Site name (required)'
+        required: true
       install_apps:
         description: 'Apps to install (optional, default: frappe)'
         required: false
@@ -131,7 +131,7 @@ jobs:
           attempt=0
           
           while [ $attempt -lt $max_attempts ]; do
-            if curl -f http://localhost:8080/api/method/ping 2>/dev/null; then
+            if curl -f http://localhost:80/api/method/ping 2>/dev/null; then
               echo "✓ Site is responding"
               break
             fi
@@ -145,38 +145,3 @@ jobs:
             exit 1
           fi
 
-      - name: List installed apps
-        run: |
-          # Use provided site name or default
-          SITE_NAME="${{ inputs.site_name }}"
-          if [ -z "$SITE_NAME" ]; then
-            SITE_NAME="site1.local"
-          fi
-          
-          CONTAINER_NAME=$(docker-compose ps -q backend | head -n1)
-          if [ -n "$CONTAINER_NAME" ]; then
-            docker exec $CONTAINER_NAME bench --site ${SITE_NAME} list-apps
-          fi
-
-      - name: Deployment summary
-        run: |
-          # Always read image details from .env
-          IMAGE_TAG=$(grep "^ERPNEXT_VERSION=" .env | cut -d '=' -f2)
-          CUSTOM_IMAGE=$(grep "^CUSTOM_IMAGE=" .env | cut -d '=' -f2)
-          
-          # Use provided values or show defaults
-          SITE_NAME="${{ inputs.site_name }}"
-          INSTALL_APPS="${{ inputs.install_apps }}"
-          
-          if [ -z "$SITE_NAME" ]; then
-            SITE_NAME="site1.local (default)"
-          fi
-          
-          if [ -z "$INSTALL_APPS" ]; then
-            INSTALL_APPS="erpnext (default)"
-          fi
-          
-          echo "✓ Deployment completed"
-          echo "Image: ${CUSTOM_IMAGE}:${IMAGE_TAG}"
-          echo "Site: ${SITE_NAME}"
-          echo "Apps: ${INSTALL_APPS}"

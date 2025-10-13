@@ -124,7 +124,7 @@ services:
         
         echo "Site setup complete!"
     environment:
-      SITE_NAME: ${SITE_NAME:-site1.local}
+      SITE_NAME: ${SITE_NAME}
       DB_PASSWORD: ${DB_PASSWORD:-123}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
       INSTALL_APPS: ${INSTALL_APPS:-frappe}
