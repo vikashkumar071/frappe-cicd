@@ -1,9 +1,9 @@
 version: '3.9'
 
 x-customizable-image: &customizable_image
-  image: ${CUSTOM_IMAGE:-frappe/erpnext}:${ERPNEXT_VERSION:-v15.82.1}
-  pull_policy: ${PULL_POLICY:-if_not_present}
-  restart: ${RESTART_POLICY:-unless-stopped}
+  image: roohmeiy/frappe-layered:${ERPNEXT_VERSION:-latest}
+  pull_policy: if_not_present
+  restart: unless-stopped
 
 x-depends-on-configurator: &depends_on_configurator
   depends_on:
@@ -59,8 +59,8 @@ services:
         condition: service_started
 
   create-site:
-    image: ${CUSTOM_IMAGE:-frappe/erpnext}:${ERPNEXT_VERSION:-v15.82.1}
-    pull_policy: ${PULL_POLICY:-if_not_present}
+    image: roohmeiy/frappe-layered:${ERPNEXT_VERSION:-latest}
+    pull_policy: if_not_present
     restart: "no"
     platform: linux/amd64
     entrypoint:
@@ -127,7 +127,7 @@ services:
       SITE_NAME: ${SITE_NAME:-site1.local}
       DB_PASSWORD: ${DB_PASSWORD:-123}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
-      INSTALL_APPS: ${INSTALL_APPS:-erpnext}
+      INSTALL_APPS: ${INSTALL_APPS:-frappe}
       SET_DEFAULT: ${SET_DEFAULT:---set-default}
     volumes:
       - sites:/home/frappe/frappe-bench/sites

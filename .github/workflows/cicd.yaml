@@ -1,4 +1,4 @@
-name: Build and Deploy Frappe
+name: Build and Deploy Frappe Custom App
 
 on:
   workflow_dispatch:
@@ -6,6 +6,18 @@ on:
       frappe_branch:
         description: 'Frappe branch (e.g., version-15, version-14)'
         required: true
+      db_password:
+        description: 'Database password (optional, default: 123)'
+        required: false
+      admin_password:
+        description: 'Admin password (optional, default: admin)'
+        required: false
+      site_name:
+        description: 'Site name (optional, default: site1.local)'
+        required: false
+      install_apps:
+        description: 'Apps to install (optional, default: erpnext)'
+        required: false
 
 env:
   DOCKER_BUILDKIT: 1
@@ -15,19 +27,19 @@ jobs:
   build:
     name: Build Custom Frappe Image
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.commit.outputs.hash }}
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Read values from .env
-        id: env_vars
+      - name: Get commit hash
+        id: commit
         run: |
-          IMAGE_TAG=$(grep "^ERPNEXT_VERSION=" .env | cut -d '=' -f2)
-          CUSTOM_IMAGE=$(grep "^CUSTOM_IMAGE=" .env | cut -d '=' -f2)
-          
-          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "custom_image=${CUSTOM_IMAGE}" >> $GITHUB_OUTPUT
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          echo "hash=${COMMIT_HASH}" >> $GITHUB_OUTPUT
+          echo "Building image with tag: ${COMMIT_HASH}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -62,17 +74,19 @@ jobs:
             --build-arg=FRAPPE_PATH=https://github.com/frappe/frappe \
             --build-arg=FRAPPE_BRANCH=${{ inputs.frappe_branch }} \
             --build-arg=APPS_JSON_BASE64=${{ steps.apps_json.outputs.apps_json_base64 }} \
-            --tag=${{ steps.env_vars.outputs.custom_image }}:${{ steps.env_vars.outputs.image_tag }} \
+            --tag=roohmeiy/frappe-layered:${{ steps.commit.outputs.hash }} \
             --file=Dockerfile \
             .
 
       - name: Push image to Docker Hub
         run: |
-          docker push ${{ steps.env_vars.outputs.custom_image }}:${{ steps.env_vars.outputs.image_tag }}
+          docker push roohmeiy/frappe-layered:${{ steps.commit.outputs.hash }}
 
       - name: Build summary
         run: |
-          echo "✓ Image: ${{ steps.env_vars.outputs.custom_image }}:${{ steps.env_vars.outputs.image_tag }}"
+          echo "✓ Build completed"
+          echo "Image: roohmeiy/frappe-layered:${{ steps.commit.outputs.hash }}"
+          echo "Frappe Branch: ${{ inputs.frappe_branch }}"
 
   deploy:
     name: Deploy to Local Server
@@ -82,6 +96,25 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set deployment parameters
+        run: |
+          # Only set parameters if provided, otherwise docker-compose uses defaults
+          if [ -n "${{ inputs.db_password }}" ]; then
+            echo "DB_PASSWORD=${{ inputs.db_password }}" >> $GITHUB_ENV
+          fi
+          
+          if [ -n "${{ inputs.admin_password }}" ]; then
+            echo "ADMIN_PASSWORD=${{ inputs.admin_password }}" >> $GITHUB_ENV
+          fi
+          
+          if [ -n "${{ inputs.site_name }}" ]; then
+            echo "SITE_NAME=${{ inputs.site_name }}" >> $GITHUB_ENV
+          fi
+          
+          if [ -n "${{ inputs.install_apps }}" ]; then
+            echo "INSTALL_APPS=${{ inputs.install_apps }}" >> $GITHUB_ENV
+          fi
 
       - name: Deploy with docker-compose
         run: |
@@ -98,7 +131,7 @@ jobs:
           attempt=0
           
           while [ $attempt -lt $max_attempts ]; do
-            if curl -f http://localhost:80/api/method/ping 2>/dev/null; then
+            if curl -f http://localhost:8080/api/method/ping 2>/dev/null; then
               echo "✓ Site is responding"
               break
             fi
@@ -114,7 +147,12 @@ jobs:
 
       - name: List installed apps
         run: |
-          SITE_NAME=$(grep "^SITE_NAME=" .env | cut -d '=' -f2)
+          # Use provided site name or default
+          SITE_NAME="${{ inputs.site_name }}"
+          if [ -z "$SITE_NAME" ]; then
+            SITE_NAME="site1.local"
+          fi
+          
           CONTAINER_NAME=$(docker-compose ps -q backend | head -n1)
           if [ -n "$CONTAINER_NAME" ]; then
             docker exec $CONTAINER_NAME bench --site ${SITE_NAME} list-apps
@@ -122,10 +160,21 @@ jobs:
 
       - name: Deployment summary
         run: |
+          # Always read image details from .env
           IMAGE_TAG=$(grep "^ERPNEXT_VERSION=" .env | cut -d '=' -f2)
           CUSTOM_IMAGE=$(grep "^CUSTOM_IMAGE=" .env | cut -d '=' -f2)
-          SITE_NAME=$(grep "^SITE_NAME=" .env | cut -d '=' -f2)
-          INSTALL_APPS=$(grep "^INSTALL_APPS=" .env | cut -d '=' -f2)
+          
+          # Use provided values or show defaults
+          SITE_NAME="${{ inputs.site_name }}"
+          INSTALL_APPS="${{ inputs.install_apps }}"
+          
+          if [ -z "$SITE_NAME" ]; then
+            SITE_NAME="site1.local (default)"
+          fi
+          
+          if [ -z "$INSTALL_APPS" ]; then
+            INSTALL_APPS="erpnext (default)"
+          fi
           
           echo "✓ Deployment completed"
           echo "Image: ${CUSTOM_IMAGE}:${IMAGE_TAG}"
