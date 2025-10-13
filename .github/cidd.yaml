@@ -1,0 +1,133 @@
+name: Build and Deploy Frappe Custom App
+
+on:
+  workflow_dispatch:
+    inputs:
+      frappe_branch:
+        description: 'Frappe branch (e.g., version-15, version-14)'
+        required: true
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  build:
+    name: Build Custom Frappe Image
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read values from .env
+        id: env_vars
+        run: |
+          IMAGE_TAG=$(grep "^ERPNEXT_VERSION=" .env | cut -d '=' -f2)
+          CUSTOM_IMAGE=$(grep "^CUSTOM_IMAGE=" .env | cut -d '=' -f2)
+          
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "custom_image=${CUSTOM_IMAGE}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Validate apps.json
+        run: |
+          if [ ! -f "apps.json" ]; then
+            echo "Error: apps.json not found"
+            exit 1
+          fi
+          
+          if ! jq empty apps.json; then
+            echo "Error: Invalid JSON in apps.json"
+            exit 1
+          fi
+
+      - name: Generate APPS_JSON_BASE64
+        id: apps_json
+        run: |
+          APPS_JSON_BASE64=$(base64 -w 0 apps.json)
+          echo "apps_json_base64=${APPS_JSON_BASE64}" >> $GITHUB_OUTPUT
+
+      - name: Build custom Frappe image
+        run: |
+          docker build \
+            --build-arg=FRAPPE_PATH=https://github.com/frappe/frappe \
+            --build-arg=FRAPPE_BRANCH=${{ inputs.frappe_branch }} \
+            --build-arg=APPS_JSON_BASE64=${{ steps.apps_json.outputs.apps_json_base64 }} \
+            --tag=${{ steps.env_vars.outputs.custom_image }}:${{ steps.env_vars.outputs.image_tag }} \
+            --file=Dockerfile \
+            .
+
+      - name: Push image to Docker Hub
+        run: |
+          docker push ${{ steps.env_vars.outputs.custom_image }}:${{ steps.env_vars.outputs.image_tag }}
+
+      - name: Build summary
+        run: |
+          echo "✓ Image: ${{ steps.env_vars.outputs.custom_image }}:${{ steps.env_vars.outputs.image_tag }}"
+
+  deploy:
+    name: Deploy to Local Server
+    runs-on: self-hosted
+    needs: build
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy with docker-compose
+        run: |
+          docker-compose down || true
+          docker-compose up -d
+
+      - name: Wait for services
+        run: |
+          sleep 30
+
+      - name: Verify deployment
+        run: |
+          max_attempts=30
+          attempt=0
+          
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -f http://localhost:8080/api/method/ping 2>/dev/null; then
+              echo "✓ Site is responding"
+              break
+            fi
+            attempt=$((attempt + 1))
+            sleep 10
+          done
+          
+          if [ $attempt -eq $max_attempts ]; then
+            echo "❌ Site did not respond"
+            docker-compose logs --tail=100
+            exit 1
+          fi
+
+      - name: List installed apps
+        run: |
+          SITE_NAME=$(grep "^SITE_NAME=" .env | cut -d '=' -f2)
+          CONTAINER_NAME=$(docker-compose ps -q backend | head -n1)
+          if [ -n "$CONTAINER_NAME" ]; then
+            docker exec $CONTAINER_NAME bench --site ${SITE_NAME} list-apps
+          fi
+
+      - name: Deployment summary
+        run: |
+          IMAGE_TAG=$(grep "^ERPNEXT_VERSION=" .env | cut -d '=' -f2)
+          CUSTOM_IMAGE=$(grep "^CUSTOM_IMAGE=" .env | cut -d '=' -f2)
+          SITE_NAME=$(grep "^SITE_NAME=" .env | cut -d '=' -f2)
+          INSTALL_APPS=$(grep "^INSTALL_APPS=" .env | cut -d '=' -f2)
+          
+          echo "✓ Deployment completed"
+          echo "Image: ${CUSTOM_IMAGE}:${IMAGE_TAG}"
+          echo "Site: ${SITE_NAME}"
+          echo "Apps: ${INSTALL_APPS}"
