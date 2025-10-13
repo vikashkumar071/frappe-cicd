@@ -98,7 +98,7 @@ jobs:
           attempt=0
           
           while [ $attempt -lt $max_attempts ]; do
-            if curl -f http://localhost:8080/api/method/ping 2>/dev/null; then
+            if curl -f http://localhost:80/api/method/ping 2>/dev/null; then
               echo "✓ Site is responding"
               break
             fi
