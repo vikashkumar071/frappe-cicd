@@ -1,0 +1,18 @@
+[
+  {
+    "url": "https://github.com/Suvaidyam/sva_frappe",
+    "branch": "develop"
+  },
+  {
+    "url": "https://github.com/Suvaidyam/MyKartavya",
+    "branch": "master"
+  },
+  {
+    "url": "https://github.com/frappe/builder",
+    "branch": "develop"
+  },
+  {
+    "url": "https://github.com/Suvaidyam/frappe_theme",
+    "branch": "main"
+  }
+]
