@@ -16,7 +16,7 @@ on:
         description: 'Site name (optional, default: site1.local)'
         required: false
       install_apps:
-        description: 'Apps to install (optional, default: erpnext)'
+        description: 'Apps to install (optional, default: frappe)'
         required: false
 
 env:
