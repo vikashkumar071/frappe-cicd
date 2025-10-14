@@ -112,14 +112,14 @@ jobs:
           fi
           echo "✓ Port ${PORT} is available"
 
-      - name: Set deployment parameters
-        run: |
-          echo "ERPNEXT_VERSION=${{ needs.build.outputs.image_tag }}" >> $GITHUB_ENV
-          echo "SITE_NAME=${{ inputs.site_name }}" >> $GITHUB_ENV
-          echo "HTTP_PUBLISH_PORT=${{ inputs.http_port }}" >> $GITHUB_ENV
-          echo "DB_PASSWORD=${{ inputs.db_password || '123' }}" >> $GITHUB_ENV
-          echo "ADMIN_PASSWORD=${{ inputs.admin_password || 'admin' }}" >> $GITHUB_ENV
-          echo "INSTALL_APPS=${{ inputs.install_apps || 'frappe' }}" >> $GITHUB_ENV
+      # - name: Set deployment parameters
+      #   run: |
+      #     echo "ERPNEXT_VERSION=${{ needs.build.outputs.image_tag }}" >> $GITHUB_ENV
+      #     echo "SITE_NAME=${{ inputs.site_name }}" >> $GITHUB_ENV
+      #     echo "HTTP_PUBLISH_PORT=${{ inputs.http_port }}" >> $GITHUB_ENV
+      #     echo "DB_PASSWORD=${{ inputs.db_password || '123' }}" >> $GITHUB_ENV
+      #     echo "ADMIN_PASSWORD=${{ inputs.admin_password || 'admin' }}" >> $GITHUB_ENV
+      #     echo "INSTALL_APPS=${{ inputs.install_apps || 'frappe' }}" >> $GITHUB_ENV
 
       - name: Deploy with docker-compose
         run: |
