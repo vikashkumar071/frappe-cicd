@@ -3,14 +3,14 @@ name: Build and Deploy Frappe Custom App
 on:
   workflow_dispatch:
     inputs:
-      project_name:
-        description: 'Project name'
-        required: true
       frappe_branch:
         description: 'Frappe branch (e.g., version-15, version-14)'
         required: true
+      site_name:
+        description: 'Site name'
+        required: true
       http_port:
-        description: 'HTTP port (required for concurrent deployments, e.g., 8080, 8081, 8082)'
+        description: 'HTTP port for this site (required, e.g., 8080, 8081, 8082)'
         required: true
       db_password:
         description: 'Database password (optional, default: 123)'
@@ -18,9 +18,6 @@ on:
       admin_password:
         description: 'Admin password (optional, default: admin)'
         required: false
-      site_name:
-        description: 'Site name '
-        required: true
       install_apps:
         description: 'Apps to install (optional, default: frappe)'
         required: false
@@ -40,26 +37,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate inputs
-        run: |
-          # Validate project_name (lowercase alphanumeric and hyphens only)
-          if [[ ! "${{ inputs.project_name }}" =~ ^[a-z0-9-]+$ ]]; then
-            echo "❌ Error: project_name must contain only lowercase letters, numbers, and hyphens"
-            echo "Example: project1, staging, prod-env"
-            echo "You entered: ${{ inputs.project_name }}"
-            exit 1
-          fi
-          echo "✓ Valid project_name: ${{ inputs.project_name }}"
-          
-          # Validate frappe_branch format
-          if [[ ! "${{ inputs.frappe_branch }}" =~ ^version-[0-9]+$ ]]; then
-            echo "❌ Error: frappe_branch must be in format 'version-XX'"
-            echo "Example: version-15, version-14, version-13"
-            echo "You entered: ${{ inputs.frappe_branch }}"
-            exit 1
-          fi
-          echo "✓ Valid frappe_branch: ${{ inputs.frappe_branch }}"
-          
       - name: Get commit hash
         id: commit
         run: |
@@ -117,39 +94,48 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Generate project name
+        id: project
+        run: |
+          # Create a safe project name from site name
+          PROJECT_NAME=$(echo "${{ inputs.site_name }}" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
+          echo "name=${PROJECT_NAME}" >> $GITHUB_OUTPUT
+          echo "Project name: ${PROJECT_NAME}"
+
+      - name: Check for port conflicts
+        run: |
+          PORT=${{ inputs.http_port }}
+          if netstat -tuln | grep -q ":${PORT} "; then
+            echo "⚠️  Warning: Port ${PORT} is already in use"
+            echo "Please choose a different port or stop the service using this port"
+            exit 1
+          fi
+          echo "✓ Port ${PORT} is available"
+
       - name: Set deployment parameters
         run: |
-          # Only set parameters if provided, otherwise docker-compose uses defaults
-          if [ -n "${{ inputs.db_password }}" ]; then
-            echo "DB_PASSWORD=${{ inputs.db_password }}" >> $GITHUB_ENV
-          fi
-          
-          if [ -n "${{ inputs.admin_password }}" ]; then
-            echo "ADMIN_PASSWORD=${{ inputs.admin_password }}" >> $GITHUB_ENV
-          fi
-          
-          if [ -n "${{ inputs.site_name }}" ]; then
-            echo "SITE_NAME=${{ inputs.site_name }}" >> $GITHUB_ENV
-          fi
-          
-          if [ -n "${{ inputs.install_apps }}" ]; then
-            echo "INSTALL_APPS=${{ inputs.install_apps }}" >> $GITHUB_ENV
-          fi
+          echo "ERPNEXT_VERSION=${{ needs.build.outputs.image_tag }}" >> $GITHUB_ENV
+          echo "SITE_NAME=${{ inputs.site_name }}" >> $GITHUB_ENV
+          echo "HTTP_PUBLISH_PORT=${{ inputs.http_port }}" >> $GITHUB_ENV
+          echo "DB_PASSWORD=${{ inputs.db_password || '123' }}" >> $GITHUB_ENV
+          echo "ADMIN_PASSWORD=${{ inputs.admin_password || 'admin' }}" >> $GITHUB_ENV
+          echo "INSTALL_APPS=${{ inputs.install_apps || 'frappe' }}" >> $GITHUB_ENV
 
       - name: Deploy with docker-compose
         run: |
-          docker-compose down || true
-          docker-compose up -d
+          docker-compose -p "${PROJECT_NAME}" up -d
+          echo "Waiting for services to start..."
           sleep 30
 
       - name: Verify deployment
         run: |
           max_attempts=30
           attempt=0
-          
+          PORT=${{ inputs.http_port }}
+                    
           while [ $attempt -lt $max_attempts ]; do
-            if curl -f http://localhost:${{ inputs.http_port }}/api/method/ping 2>/dev/null; then
-              echo "✓ Site is responding"
+            if curl -f http://localhost:${PORT}/api/method/ping 2>/dev/null; then
+              echo "✓ Site is responding on port ${PORT}"
               break
             fi
             attempt=$((attempt + 1))
@@ -157,12 +143,19 @@ jobs:
           done
           
           if [ $attempt -eq $max_attempts ]; then
-            echo "❌ Site did not respond"
-            docker-compose logs --tail=100
+            echo "❌ Site did not respond after $max_attempts attempts"
+            echo "Showing logs:"
+            docker-compose -p "${{ steps.project.outputs.name }}" logs --tail=100
             exit 1
           fi
 
       - name: Deployment summary
         run: |
-          echo "✓ Deployment completed"
-          
+          echo "✓ Deployment completed successfully!"
+          echo "=== Deployment Details ==="
+          echo "Project Name: ${{ steps.project.outputs.name }}"
+          echo "Site Name: ${{ inputs.site_name }}"
+          echo "Image: roohmeiy/frappe-layered:${{ needs.build.outputs.image_tag }}"
+          echo "Access URL: http://localhost:${{ inputs.http_port }}"
+          echo "Installed Apps: ${{ inputs.install_apps || 'frappe (default)' }}"
+         
