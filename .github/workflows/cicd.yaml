@@ -3,8 +3,14 @@ name: Build and Deploy Frappe Custom App
 on:
   workflow_dispatch:
     inputs:
+      project_name:
+        description: 'Project name (unique identifier, e.g., project1, staging, prod)'
+        required: true
       frappe_branch:
         description: 'Frappe branch (e.g., version-15, version-14)'
+        required: true
+      http_port:
+        description: 'HTTP port (required for concurrent deployments, e.g., 8080, 8081, 8082)'
         required: true
       db_password:
         description: 'Database password (optional, default: 123)'
@@ -13,8 +19,8 @@ on:
         description: 'Admin password (optional, default: admin)'
         required: false
       site_name:
-        description: 'Site name (required)'
-        required: true
+        description: 'Site name (optional, auto-generated from project_name if not provided)'
+        required: false
       install_apps:
         description: 'Apps to install (optional, default: frappe)'
         required: false
@@ -34,6 +40,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate inputs
+        run: |
+          # Validate project_name (lowercase alphanumeric and hyphens only)
+          if [[ ! "${{ inputs.project_name }}" =~ ^[a-z0-9-]+$ ]]; then
+            echo "❌ Error: project_name must contain only lowercase letters, numbers, and hyphens"
+            echo "Example: project1, staging, prod-env"
+            echo "You entered: ${{ inputs.project_name }}"
+            exit 1
+          fi
+          echo "✓ Valid project_name: ${{ inputs.project_name }}"
+          
+          # Validate frappe_branch format
+          if [[ ! "${{ inputs.frappe_branch }}" =~ ^version-[0-9]+$ ]]; then
+            echo "❌ Error: frappe_branch must be in format 'version-XX'"
+            echo "Example: version-15, version-14, version-13"
+            echo "You entered: ${{ inputs.frappe_branch }}"
+            exit 1
+          fi
+          echo "✓ Valid frappe_branch: ${{ inputs.frappe_branch }}"
+          
       - name: Get commit hash
         id: commit
         run: |
@@ -82,12 +108,6 @@ jobs:
         run: |
           docker push roohmeiy/frappe-layered:${{ steps.commit.outputs.hash }}
 
-      - name: Build summary
-        run: |
-          echo "✓ Build completed"
-          echo "Image: roohmeiy/frappe-layered:${{ steps.commit.outputs.hash }}"
-          echo "Frappe Branch: ${{ inputs.frappe_branch }}"
-
   deploy:
     name: Deploy to Local Server
     runs-on: self-hosted
@@ -128,7 +148,7 @@ jobs:
           attempt=0
           
           while [ $attempt -lt $max_attempts ]; do
-            if curl -f http://localhost:80/api/method/ping 2>/dev/null; then
+            if curl -f http://localhost:${{ inputs.http_port }}/api/method/ping 2>/dev/null; then
               echo "✓ Site is responding"
               break
             fi
@@ -142,3 +162,7 @@ jobs:
             exit 1
           fi
 
+      - name: Deployment summary
+        run: |
+          echo "✓ Deployment completed"
+          
