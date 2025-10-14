@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       project_name:
-        description: 'Project name (unique identifier, e.g., project1, staging, prod)'
+        description: 'Project name'
         required: true
       frappe_branch:
         description: 'Frappe branch (e.g., version-15, version-14)'
@@ -19,8 +19,8 @@ on:
         description: 'Admin password (optional, default: admin)'
         required: false
       site_name:
-        description: 'Site name (optional, auto-generated from project_name if not provided)'
-        required: false
+        description: 'Site name '
+        required: true
       install_apps:
         description: 'Apps to install (optional, default: frappe)'
         required: false
