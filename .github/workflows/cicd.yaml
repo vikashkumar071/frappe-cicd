@@ -123,7 +123,23 @@ jobs:
 
       - name: Deploy with docker-compose
         run: |
+          PROJECT_NAME="${{ steps.project.outputs.name }}"
+          
+          echo "Deploying project: ${PROJECT_NAME}"
+          echo "Site: ${{ inputs.site_name }}"
+          echo "Port: ${{ inputs.http_port }}"
+          
+          # Export environment variables for docker-compose
+          export ERPNEXT_VERSION="${{ needs.build.outputs.image_tag }}"
+          export SITE_NAME="${{ inputs.site_name }}"
+          export HTTP_PUBLISH_PORT="${{ inputs.http_port }}"
+          export DB_PASSWORD="${{ inputs.db_password || '123' }}"
+          export ADMIN_PASSWORD="${{ inputs.admin_password || 'admin' }}"
+          export INSTALL_APPS="${{ inputs.install_apps || 'frappe' }}"
+          
+          # Deploy using project name to isolate this stack
           docker-compose -p "${PROJECT_NAME}" up -d
+          
           echo "Waiting for services to start..."
           sleep 30
 
