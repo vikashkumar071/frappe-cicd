@@ -122,4 +122,58 @@ Each site runs in complete isolation with:
 - ✅ Separate volumes and data
 - ✅ Independent scaling and management
 
+# Jenkins Pipeline Setup Guide
+
+## Prerequisites
+
+### 1. Jenkins Plugins Required
+Install these plugins in Jenkins (Manage Jenkins → Plugin Manager):
+
+- **Pipeline** (Core pipeline plugin)
+- **Docker Pipeline** (for Docker operations)
+- **Git** (for SCM checkout)
+
+### 2. Jenkins Node Configuration
+
+#### Build Agent (any)
+- Can run on any available Jenkins agent
+- Requires Docker installed and accessible
+- User must have permissions to run Docker commands
+
+#### Deploy Agent (self-hosted)
+- Must be labeled as `self-hosted` in Jenkins
+- Configure in: Manage Jenkins → Nodes → [Your Node] → Configure → Labels
+- Add label: `self-hosted`
+
+### 3. Docker Hub Credentials Setup
+
+1. Go to: **Manage Jenkins** → **Credentials** → **System** → **Global credentials**
+2. Click **Add Credentials**
+3. Configure:
+   - **Kind**: Username with password
+   - **Scope**: Global
+   - **Username**: Your Docker Hub username
+   - **Password**: Your Docker Hub password/token
+   - **ID**: `docker-hub-credentials` (IMPORTANT: Must match the ID used in pipeline)
+   - **Description**: Docker Hub Credentials
+
+### 4. Required System Tools
+
+Both build and deploy agents need:
+```bash
+# Docker
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose
+
+# jq (for JSON validation)
+sudo apt-get install -y jq
+
+# netstat (for port checking)
+sudo apt-get install -y net-tools
+
+# Add jenkins user to docker group
+sudo usermod -aG docker jenkins
+sudo systemctl restart jenkins
+```
+
 
