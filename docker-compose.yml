@@ -1,7 +1,7 @@
 version: '3.9'
 
 x-customizable-image: &customizable_image
-  image: roohmeiy/frappe-layered:${ERPNEXT_VERSION:-latest}
+  image: vikashdhwani/frappe-layered:${ERPNEXT_VERSION:-latest}
   pull_policy: if_not_present
   restart: unless-stopped
 
