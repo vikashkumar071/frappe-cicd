@@ -77,13 +77,13 @@ jobs:
             --build-arg=FRAPPE_PATH=https://github.com/frappe/frappe \
             --build-arg=FRAPPE_BRANCH=${{ inputs.frappe_branch }} \
             --build-arg=APPS_JSON_BASE64=${{ steps.apps_json.outputs.apps_json_base64 }} \
-            --tag=roohmeiy/frappe-layered:${{ steps.commit.outputs.hash }} \
+            --tag=${{ secrets.DOCKER_USERNAME }}/frappe-layered:${{ steps.commit.outputs.hash }} \
             --file=Dockerfile \
             .
 
       - name: Push image to Docker Hub
         run: |
-          docker push roohmeiy/frappe-layered:${{ steps.commit.outputs.hash }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/frappe-layered:${{ steps.commit.outputs.hash }}
 
   deploy:
     name: Deploy to Local Server
@@ -171,7 +171,7 @@ jobs:
           echo "=== Deployment Details ==="
           echo "Project Name: ${{ steps.project.outputs.name }}"
           echo "Site Name: ${{ inputs.site_name }}"
-          echo "Image: roohmeiy/frappe-layered:${{ needs.build.outputs.image_tag }}"
+          echo "Image: ${{ secrets.DOCKER_USERNAME }}/frappe-layered:${{ needs.build.outputs.image_tag }}"
           echo "Access URL: http://localhost:${{ inputs.http_port }}"
           echo "Installed Apps: ${{ inputs.install_apps || 'frappe (default)' }}"
          
