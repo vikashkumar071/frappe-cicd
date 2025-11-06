@@ -59,7 +59,7 @@ services:
         condition: service_started
 
   create-site:
-    image: roohmeiy/frappe-layered:${ERPNEXT_VERSION:-latest}
+    image: vikashdhwani/frappe-layered:${ERPNEXT_VERSION:-latest}
     pull_policy: if_not_present
     restart: "no"
     platform: linux/amd64
